@@ -270,12 +270,12 @@ def main():
         rot_y = pyrr.Matrix44.from_y_rotation(ya)
         rot_z = pyrr.Matrix44.from_z_rotation(za )
 
-        (dx,dy,dz) = (0.1,0.3,-0.2)
+        (dx,dy,dz) = (0.0,0.0,-0.2)
         #(dx,dy,dz) =  numpy.random.uniform(-0.5,0.5,size=3)
 
         trans = pyrr.matrix44.create_from_translation([dx, dy, -2+dz])
 
-        proj = pyrr.matrix44.create_perspective_projection_matrix(80.0,w/h,0.1,1000.0)
+        proj = pyrr.matrix44.create_perspective_projection_matrix(80.0,1.0,0.1,1000.0)
   
         rot = numpy.array(rot_x * rot_y * rot_z * trans)
 
