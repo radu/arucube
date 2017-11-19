@@ -5,28 +5,30 @@ import OpenGL.GL.shaders
 import numpy
 import pyrr
 from PIL import Image
-import time 
+import time
 import math
 
+from matplotlib import pyplot as plt
+
 import cv2
-from cv2 import aruco   
+from cv2 import aruco
 
 ARUCO_DICT=aruco.getPredefinedDictionary(aruco.DICT_ARUCO_ORIGINAL)
 
 def loadTextures():
-        
+
     texture = glGenTextures(1)
     glActiveTexture(GL_TEXTURE0)
     glBindTexture(GL_TEXTURE_2D_ARRAY, texture)
 
-    glTexStorage3D(GL_TEXTURE_2D_ARRAY, 6, GL_RGB8, 320, 320, 8) 
-    
+    glTexStorage3D(GL_TEXTURE_2D_ARRAY, 6, GL_RGB8, 320, 320, 8)
+
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
 
-    
+
     for i in range(6):
         image = Image.new('RGB', (320,320), (255,255,255))
         image.paste(Image.fromarray(aruco.drawMarker(ARUCO_DICT,i+2,300)).convert("RGB"), (10,10))
@@ -52,7 +54,7 @@ def loadTextures():
         #glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
         #glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
         glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL)
-    
+
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
     glGenerateMipmap(GL_TEXTURE_2D_ARRAY)
 
@@ -61,37 +63,36 @@ def loadTextures():
 def detectTag(img, camera_matrix, dist_coeffs, ra):
     markerLength = 4   # Here, our measurement unit is centimetre.
     arucoParams = aruco.DetectorParameters_create()
-    
+
     imgGray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)    # aruco.detectMarkers() requires gray image
     corners, ids, rejectedImgPoints = aruco.detectMarkers(imgGray, ARUCO_DICT, parameters=arucoParams) # Detect aruco
 
     sstr = f"0, {ra[0]} , {ra[1]}, {ra[2]}"
-      
-    
+
+
     if ids is not None: # if aruco marker detected
         rvec, tvec, pts = aruco.estimatePoseSingleMarkers(corners, markerLength, camera_matrix, dist_coeffs) # posture estimation from a single marker
         imgWithAruco = aruco.drawDetectedMarkers(img, corners, ids, (0,255,0))
         for i in range(len(tvec)):
             imgWithAruco = aruco.drawAxis(imgWithAruco, camera_matrix, dist_coeffs, rvec[i], tvec[i], 4)    # axis length 100 can be changed according to your requirement
 
-        for i in list(range(2,8))+[768]:
+        for i in [2,768] + list(range(4,8)):
             idx = numpy.where(ids == [i])[0]
-            
+
             if idx:
                 n = idx[0]
                 angs = numpy.array(rvec[n][0]) * 360.0 / math.pi
                 sstr+=f", {i}, {angs[0]}, {angs[1]}, {angs[2]}"
             else:
                 sstr+=', '*4
-    
+
         print(sstr)
 
     else:   # if aruco marker is NOT detected
         imgWithAruco = img  # assign imRemapped_color to imgWithAruco directly
 
-
-
-    cv2.imshow("aruco", imgWithAruco)   # display
+    cv2.imshow('aruco',imgWithAruco)   # display
+    cv2.waitKey(1)
 
 def main():
 
@@ -100,12 +101,12 @@ def main():
         return
 
     window = glfw.create_window(1000, 1000, "My OpenGL window", None, None)
-    window.visible = False
+    #window.visible = False
 
     if not window:
         glfw.terminate()
         return
-    
+
 
     glfw.make_context_current(window)
 
@@ -162,7 +163,7 @@ def main():
     out vec3 newColor;
     out vec2 newTexture;
     out float newtextureid;
-    
+
     void main()
     {
         gl_Position = proj * transform * vec4(position, 1.0f);
@@ -182,7 +183,7 @@ def main():
     uniform sampler2DArray samplerTexture;
 
     out vec3 outColor;
-    
+
     void main()
     {
         outColor = (texture(samplerTexture, vec3(newTexture, newtextureid))  * vec4(newColor, 1.0f)).rgb;
@@ -254,7 +255,7 @@ def main():
     (xa,ya,za) = (0,0,0)
 
     while not glfw.window_should_close(window):
-        
+
         (w,h) =glfw.get_window_size(window)
 
         glfw.poll_events()
@@ -264,27 +265,27 @@ def main():
 
         #(xa,ya,za) = (12,45,77)
         #(xa,ya,za) = numpy.random.uniform(size=3)*360.0
+
         (xa,ya,za) = numpy.array([0.8,0.3,0.2])*glfw.get_time()
+        (xa,ya,za) = (xa % 2*math.pi, ya % 2*math.pi, za % 2*math.pi)
 
-        rot_x = pyrr.Matrix44.from_x_rotation(xa )
+        rot_x = pyrr.Matrix44.from_x_rotation(xa)
         rot_y = pyrr.Matrix44.from_y_rotation(ya)
-        rot_z = pyrr.Matrix44.from_z_rotation(za )
+        rot_z = pyrr.Matrix44.from_z_rotation(za)
+        rot = rot_x * rot_y * rot_z
 
-        (dx,dy,dz) = (0.0,0.0,-0.2)
+        (dx,dy,dz) = (0.0,0.0,-2.0)
         #(dx,dy,dz) =  numpy.random.uniform(-0.5,0.5,size=3)
+        trans = pyrr.matrix44.create_from_translation([dx, dy, dz])
 
-        trans = pyrr.matrix44.create_from_translation([dx, dy, -2+dz])
+        proj = pyrr.matrix44.create_perspective_projection_matrix(80.0,1.0,0.01,1000.0)
 
-        proj = pyrr.matrix44.create_perspective_projection_matrix(80.0,1.0,0.1,1000.0)
-  
-        rot = numpy.array(rot_x * rot_y * rot_z * trans)
-
-        ra = numpy.array([xa,ya,za]) * 360.0 / math.pi % 360.0
+        transf = numpy.array(rot.dot(trans))
 
         transformLoc = glGetUniformLocation(shader, "transform")
         projLoc = glGetUniformLocation(shader, "proj")
 
-        glUniformMatrix4fv(transformLoc, 1, GL_FALSE, rot)
+        glUniformMatrix4fv(transformLoc, 1, GL_FALSE, transf)
         glUniformMatrix4fv(projLoc, 1, GL_FALSE, proj)
 
         glDrawElements(GL_TRIANGLES, len(indices), GL_UNSIGNED_INT, None)
@@ -301,6 +302,7 @@ def main():
 
         dist = numpy.array([0.0,0.0,0.0,0.0]).reshape(4,1)
 
+        ra = numpy.array([xa,ya,za]) * 360.0 / math.pi
         detectTag(im, pm, dist,ra)
 
 
